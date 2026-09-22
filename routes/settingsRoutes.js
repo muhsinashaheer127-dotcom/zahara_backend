@@ -1,32 +1,30 @@
 import express from 'express'
-import { Settings } from '../models/Settings.js'
+import { storeSettings } from '../data/store.js'
+import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// GET /api/settings
-router.get('/', async (req, res) => {
+// GET /api/settings — admin only
+router.get('/', authenticateUser, requireAdmin, async (req, res) => {
   try {
-    let settings = await Settings.findOne({ customId: 'settings_global' })
-    if (!settings) {
-      settings = await Settings.create({ customId: 'settings_global' })
-    }
-    res.json(settings)
+    const settings = await storeSettings.get()
+    res.json(settings || {})
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving settings', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 500).json({
+      success: false, message: error.message,
+    })
   }
 })
 
-// PUT /api/settings
-router.put('/', async (req, res) => {
+// PUT /api/settings — admin only
+router.put('/', authenticateUser, requireAdmin, async (req, res) => {
   try {
-    const updated = await Settings.findOneAndUpdate(
-      { customId: 'settings_global' },
-      { $set: req.body },
-      { new: true, upsert: true }
-    )
+    const updated = await storeSettings.save(req.body)
     res.json(updated)
   } catch (error) {
-    res.status(400).json({ message: 'Failed to update settings', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 400).json({
+      success: false, message: error.message,
+    })
   }
 })
 

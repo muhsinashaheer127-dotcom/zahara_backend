@@ -5,11 +5,13 @@ const userSchema = new mongoose.Schema(
     customId: { type: String, index: true },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, default: 'zahara123' },
+    password: { type: String, required: true },
     phone: { type: String, default: '' },
+    address: { type: String, default: '' },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     accountStatus: { type: String, enum: ['Active', 'Blocked', 'Pending'], default: 'Active' },
     avatar: { type: String, default: '' },
+    memberSince: { type: String, default: () => new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) },
     registrationDate: { type: String, default: () => new Date().toISOString().split('T')[0] },
     totalBookings: { type: Number, default: 0 },
   },
@@ -27,3 +29,4 @@ const userSchema = new mongoose.Schema(
 )
 
 export const User = mongoose.models.User || mongoose.model('User', userSchema)
+

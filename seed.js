@@ -2,7 +2,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import mongoose from 'mongoose'
-import { connectDB } from './config/db.js'
+import bcrypt from 'bcryptjs'
 
 // Models
 import { Category } from './models/Category.js'
@@ -51,20 +51,43 @@ const seed = async () => {
   console.log('║      Zahara Database Seed Script      ║')
   console.log('╚══════════════════════════════════════╝')
 
-  console.log('\n[Seed] Connecting to MongoDB Atlas...')
-  const connected = await connectDB()
+  const uri = process.env.MONGODB_URI
+  if (!uri || uri.includes('<password>') || uri.includes('<db_password>')) {
+    console.error('\n[Seed] ✗ MONGODB_URI is not properly configured in .env')
+    process.exit(1)
+  }
 
-  if (!connected) {
-    console.error('\n[Seed] ✗ Database connection failed.')
-    console.error('[Seed]   Check MONGODB_URI in .env and whitelist your IP in Atlas.')
+  console.log('\n[Seed] Connecting to MongoDB Atlas...')
+
+  try {
+    const conn = await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
+    })
+    console.log(`\x1b[32m[Seed] ✓ Connected to: ${conn.connection.host}\x1b[0m`)
+  } catch (err) {
+    console.error('\n[Seed] ✗ MongoDB connection failed:', err.message)
+    if (err.message.includes('alert number 80')) {
+      console.error('[Seed]   Your IP is not whitelisted in MongoDB Atlas.')
+      console.error('[Seed]   Go to: https://cloud.mongodb.com/ > Network Access > Add IP')
+    }
     process.exit(1)
   }
 
   try {
+    // Hash passwords for seed users
+    console.log('\n[Seed] Hashing user passwords with bcrypt...')
+    const hashedUsers = await Promise.all(
+      SEED_USERS.map(async (u) => ({
+        ...u,
+        password: await bcrypt.hash(u.password, 12),
+      }))
+    )
+
     // Seed all collections
     await upsert(Category, 'customId', SEED_CATEGORIES, 'Categories')
     await upsert(Product,  'slug',     SEED_PRODUCTS,   'Products')
-    await upsert(User,     'email',    SEED_USERS,      'Users')
+    await upsert(User,     'email',    hashedUsers,     'Users (with hashed passwords)')
     await upsert(Booking,  'customId', SEED_BOOKINGS,   'Bookings')
     await upsert(Order,    'customId', SEED_ORDERS,     'Orders')
     await upsert(Payment,  'customId', SEED_PAYMENTS,   'Payments')
@@ -79,11 +102,11 @@ const seed = async () => {
     )
     console.log('   ✔ Settings: upserted')
 
-    console.log('\n╔══════════════════════════════════════╗')
-    console.log('║   ✓ Database seeded successfully!    ║')
-    console.log('╚══════════════════════════════════════╝')
+    console.log('\n╔══════════════════════════════════════════╗')
+    console.log('║   ✓ Database seeded successfully!        ║')
+    console.log('╚══════════════════════════════════════════╝')
     console.log('\n Admin Login: admin@zahara.com / zahara@admin123')
-    console.log(' Demo User:   demo@zahara.com / zahara123\n')
+    console.log(' Demo User:   demo@zahara.com  / zahara123\n')
 
     await mongoose.connection.close()
     process.exit(0)

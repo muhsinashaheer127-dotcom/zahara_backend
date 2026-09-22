@@ -1,70 +1,36 @@
 import express from 'express'
-import { Order } from '../models/Order.js'
+import { storeOrders } from '../data/store.js'
+import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// GET /api/orders
-router.get('/', async (req, res) => {
+// GET /api/orders — admin only
+router.get('/', authenticateUser, requireAdmin, async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 })
+    const orders = await storeOrders.find()
     res.json(orders)
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving orders', error: error.message })
-  }
-})
-
-// GET /api/orders/:id
-router.get('/:id', async (req, res) => {
-  try {
-    const order = await Order.findOne({
-      $or: [{ customId: req.params.id }, { _id: req.params.id.match(/^[0-9a-fA-F]{24}$/) ? req.params.id : null }],
+    res.status(error.message.includes('not connected') ? 503 : 500).json({
+      success: false, message: error.message,
     })
-    if (!order) return res.status(404).json({ message: 'Order not found' })
-    res.json(order)
-  } catch (error) {
-    res.status(500).json({ message: 'Error retrieving order', error: error.message })
   }
 })
 
-// POST /api/orders
-router.post('/', async (req, res) => {
+// PUT /api/orders/:id/status — admin only
+router.put('/:id/status', authenticateUser, requireAdmin, async (req, res) => {
   try {
-    const order = new Order({
-      ...req.body,
-      customId: req.body.customId || `ORD-${Date.now()}`,
-    })
-    const saved = await order.save()
-    res.status(201).json(saved)
-  } catch (error) {
-    res.status(400).json({ message: 'Failed to create order', error: error.message })
-  }
-})
+    const { id } = req.params
+    const { status } = req.body
 
-// PUT /api/orders/:id/status
-router.put('/:id/status', async (req, res) => {
-  try {
-    const { status, isOverdue } = req.body
-    const updated = await Order.findOneAndUpdate(
-      { $or: [{ customId: req.params.id }, { _id: req.params.id.match(/^[0-9a-fA-F]{24}$/) ? req.params.id : null }] },
-      { ...(status && { status }), ...(isOverdue !== undefined && { isOverdue }) },
-      { new: true }
-    )
-    if (!updated) return res.status(404).json({ message: 'Order not found' })
+    const updated = await storeOrders.updateStatus(id, status)
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Order not found.' })
+    }
     res.json(updated)
   } catch (error) {
-    res.status(400).json({ message: 'Failed to update order status', error: error.message })
-  }
-})
-
-// DELETE /api/orders/:id
-router.delete('/:id', async (req, res) => {
-  try {
-    await Order.findOneAndDelete({
-      $or: [{ customId: req.params.id }, { _id: req.params.id.match(/^[0-9a-fA-F]{24}$/) ? req.params.id : null }],
+    res.status(error.message.includes('not connected') ? 503 : 400).json({
+      success: false, message: error.message,
     })
-    res.json({ message: 'Order deleted' })
-  } catch (error) {
-    res.status(400).json({ message: 'Failed to delete order', error: error.message })
   }
 })
 

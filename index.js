@@ -24,50 +24,65 @@ const app  = express()
 const PORT = process.env.PORT || 5000
 
 // Middleware
-app.use(cors())
-app.use(express.json())
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+}))
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true }))
 
-// Health check
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   const db = getDBStatus()
   res.json({
     status: 'ok',
     serverTime: new Date().toISOString(),
     database: db,
+    ...(
+      !db.isConnected
+        ? {
+            actionRequired: 'Add your Public IP to MongoDB Atlas > Network Access',
+            publicIP: db.publicIP,
+            atlasUrl: 'https://cloud.mongodb.com/',
+            diagnoseCommand: 'node server/diagnose.js',
+          }
+        : {}
+    ),
   })
 })
 
 // API Routes
+// userRoutes handles both /api/users/* AND /api/auth/* (register, login)
+app.use('/api/auth',       userRoutes)   // handles /api/auth/login and /api/auth/register
+app.use('/api/users',      userRoutes)   // handles /api/users/* (CRUD, profile, status)
 app.use('/api/products',   productRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/bookings',   bookingRoutes)
-app.use('/api/users',      userRoutes)
 app.use('/api/orders',     orderRoutes)
 app.use('/api/payments',   paymentRoutes)
 app.use('/api/reviews',    reviewRoutes)
 app.use('/api/settings',   settingsRoutes)
-app.use('/api',            userRoutes) // handles /api/auth/login and /api/auth/register
+
+// 404 handler for unmatched API routes
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, message: `API route not found: ${req.method} ${req.originalUrl}` })
+})
 
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('[Server Error]', err.stack)
-  res.status(500).json({ message: 'Internal Server Error', error: err.message })
+  res.status(500).json({ success: false, message: 'Internal Server Error', error: err.message })
 })
 
-// Start server
-const startServer = async () => {
-  console.log(`\n[Zahara] Starting server on port ${PORT}...`)
+// Start server and connect to MongoDB
+const server = app.listen(PORT, () => {
+  console.log(`\n\x1b[32m[Zahara] ✓ Server running on http://localhost:${PORT}\x1b[0m`)
+  console.log(`\x1b[36m[Zahara]   Frontend: http://localhost:5173\x1b[0m`)
+  console.log(`\x1b[36m[Zahara]   Health:   http://localhost:${PORT}/api/health\x1b[0m`)
+  console.log(`\x1b[36m[Zahara]   API:      http://localhost:${PORT}/api\x1b[0m\n`)
 
-  await connectDB()
+  // Connect to MongoDB Atlas (non-blocking so server starts immediately)
+  connectDB()
+})
 
-  app.listen(PORT, () => {
-    console.log(`\x1b[32m[Zahara] Server running on http://localhost:${PORT}\x1b[0m`)
-    console.log(`\x1b[36m[Zahara] Health check: http://localhost:${PORT}/api/health\x1b[0m`)
-    console.log(`\x1b[36m[Zahara] API endpoints:\x1b[0m`)
-    console.log(`         /api/products | /api/categories | /api/bookings`)
-    console.log(`         /api/users    | /api/orders     | /api/payments`)
-    console.log(`         /api/reviews  | /api/settings   | /api/auth/*`)
-  })
-}
-
-startServer()
+export default app

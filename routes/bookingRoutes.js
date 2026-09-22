@@ -1,68 +1,77 @@
 import express from 'express'
-import { Booking } from '../models/Booking.js'
+import { storeBookings } from '../data/store.js'
+import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// GET /api/bookings
-router.get('/', async (req, res) => {
+const dbStatus = (err) => err.message.includes('not connected') ? 503 : 500
+
+// GET /api/bookings — admin sees all; authenticated user sees their own
+router.get('/', authenticateUser, async (req, res) => {
   try {
-    const bookings = await Booking.find().sort({ createdAt: -1 })
+    const filter = {}
+    // Non-admin users can only see their own bookings
+    if (req.user.role !== 'admin') {
+      filter.userId = req.user.email
+    }
+    const bookings = await storeBookings.find(filter)
     res.json(bookings)
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving bookings', error: error.message })
+    res.status(dbStatus(error)).json({ success: false, message: error.message })
   }
 })
 
-// GET /api/bookings/:id
-router.get('/:id', async (req, res) => {
+// GET /api/bookings/:id — authenticated
+router.get('/:id', authenticateUser, async (req, res) => {
   try {
     const { id } = req.params
-    const booking = await Booking.findOne({
-      $or: [{ customId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }],
-    })
+    const booking = await storeBookings.findOne(id)
     if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' })
+      return res.status(404).json({ success: false, message: 'Booking not found.' })
+    }
+    // Non-admins can only see their own booking
+    if (req.user.role !== 'admin' && booking.customerEmail !== req.user.email) {
+      return res.status(403).json({ success: false, message: 'Access denied.' })
     }
     res.json(booking)
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving booking', error: error.message })
+    res.status(dbStatus(error)).json({ success: false, message: error.message })
   }
 })
 
-// POST /api/bookings
-router.post('/', async (req, res) => {
+// POST /api/bookings — authenticated user
+router.post('/', authenticateUser, async (req, res) => {
   try {
     const data = req.body
     data.customId = data.customId || `ZH-BK-${Math.floor(1000 + Math.random() * 9000)}`
+    // Attach the logged-in user's info
+    if (!data.customerEmail && req.user.email) data.customerEmail = req.user.email
+    if (!data.customerName  && req.user.name)  data.customerName  = req.user.name
+    data.userId = req.user.email
 
-    const booking = new Booking(data)
-    const saved = await booking.save()
+    const saved = await storeBookings.create(data)
     res.status(201).json({ success: true, booking: saved, bookingId: saved.customId })
   } catch (error) {
-    res.status(400).json({ message: 'Failed to create booking', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 400).json({
+      success: false,
+      message: 'Failed to create booking. ' + error.message,
+    })
   }
 })
 
-// PUT /api/bookings/:id/status
-router.put('/:id/status', async (req, res) => {
+// PUT /api/bookings/:id/status — admin only
+router.put('/:id/status', authenticateUser, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params
     const { status, paymentStatus } = req.body
-    const update = {}
-    if (status) update.status = status
-    if (paymentStatus) update.paymentStatus = paymentStatus
 
-    const updated = await Booking.findOneAndUpdate(
-      { $or: [{ customId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }] },
-      update,
-      { new: true }
-    )
+    const updated = await storeBookings.updateStatus(id, status, paymentStatus)
     if (!updated) {
-      return res.status(404).json({ message: 'Booking not found' })
+      return res.status(404).json({ success: false, message: 'Booking not found.' })
     }
     res.json(updated)
   } catch (error) {
-    res.status(400).json({ message: 'Failed to update booking status', error: error.message })
+    res.status(dbStatus(error)).json({ success: false, message: error.message })
   }
 })
 

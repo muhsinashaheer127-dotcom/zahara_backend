@@ -1,20 +1,29 @@
 import express from 'express'
-import { Category } from '../models/Category.js'
+import { storeCategories } from '../data/store.js'
+import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// GET /api/categories
+const dbError = (error) => ({
+  success: false,
+  message: error.message.includes('not connected')
+    ? 'Database unavailable. Please ensure the backend is connected to MongoDB.'
+    : error.message,
+  error: error.message,
+})
+
+// GET /api/categories — public
 router.get('/', async (req, res) => {
   try {
-    const categories = await Category.find().sort({ createdAt: 1 })
+    const categories = await storeCategories.find()
     res.json(categories)
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving categories', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 500).json(dbError(error))
   }
 })
 
-// POST /api/categories
-router.post('/', async (req, res) => {
+// POST /api/categories — admin only
+router.post('/', authenticateUser, requireAdmin, async (req, res) => {
   try {
     const data = req.body
     if (!data.slug && data.name) {
@@ -22,45 +31,38 @@ router.post('/', async (req, res) => {
     }
     data.customId = data.customId || data.slug
 
-    const category = new Category(data)
-    const saved = await category.save()
+    const saved = await storeCategories.create(data)
     res.status(201).json(saved)
   } catch (error) {
-    res.status(400).json({ message: 'Failed to create category', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 400).json(dbError(error))
   }
 })
 
-// PUT /api/categories/:id
-router.put('/:id', async (req, res) => {
+// PUT /api/categories/:id — admin only
+router.put('/:id', authenticateUser, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params
-    const updated = await Category.findOneAndUpdate(
-      { $or: [{ customId: id }, { slug: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }] },
-      req.body,
-      { new: true }
-    )
+    const updated = await storeCategories.update(id, req.body)
     if (!updated) {
-      return res.status(404).json({ message: 'Category not found' })
+      return res.status(404).json({ success: false, message: 'Category not found.' })
     }
     res.json(updated)
   } catch (error) {
-    res.status(400).json({ message: 'Failed to update category', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 400).json(dbError(error))
   }
 })
 
-// DELETE /api/categories/:id
-router.delete('/:id', async (req, res) => {
+// DELETE /api/categories/:id — admin only
+router.delete('/:id', authenticateUser, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params
-    const deleted = await Category.findOneAndDelete({
-      $or: [{ customId: id }, { slug: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }],
-    })
-    if (!deleted) {
-      return res.status(404).json({ message: 'Category not found' })
+    const success = await storeCategories.delete(id)
+    if (!success) {
+      return res.status(404).json({ success: false, message: 'Category not found.' })
     }
-    res.json({ message: 'Category deleted successfully', id })
+    res.json({ success: true, message: 'Category deleted successfully.', id })
   } catch (error) {
-    res.status(500).json({ message: 'Failed to delete category', error: error.message })
+    res.status(error.message.includes('not connected') ? 503 : 500).json(dbError(error))
   }
 })
 
