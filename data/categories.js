@@ -1,0 +1,10 @@
+export const SEED_CATEGORIES = [
+  { customId: 'necklaces',   name: 'Necklaces',   slug: 'necklaces',   image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvhZDc_w1CdhxHhTepWNH74v7qlQswWPaTqade53WwaA&s',      description: 'Elegant necklaces for every occasion' },
+  { customId: 'earrings',    name: 'Earrings',    slug: 'earrings',    image: 'https://ksupreme.in/cdn/shop/files/Red-Stone-Jhumka-Earrings.webp?v=1783073271',                                   description: 'Stunning earrings from studs to chandeliers' },
+  { customId: 'bridal-sets', name: 'Bridal Sets', slug: 'bridal-sets', image: 'https://cdn.shopify.com/s/files/1/0232/5737/files/1080X1080_-_Blog_Image-14_480x480.webp?v=1712122400',         description: 'Complete bridal jewellery sets for the big day' },
+  { customId: 'hip-chain',   name: 'Hip Chain',   slug: 'hip-chain',   image: 'https://radhejewellery.in/cdn/shop/files/RJHP-45_1_d5564592-2c06-4d30-88f0-01a15cd854d0_360x.jpg?v=1747928417', description: 'Traditional hip chains and waist jewellery' },
+  { customId: 'bangles',     name: 'Bangles',     slug: 'bangles',     image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRebitCPEtDxrOxJXuGVMebbNq2H9KTwc0V2SnG-Aap4Q&s=10',    description: 'Beautiful bangles and kadas' },
+  { customId: 'rings',       name: 'Rings',       slug: 'rings',       image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQkivTzKJ7RHZxJGbQs66Q_v9ocsTCxs4FyKZksYEvmMg&s=10',    description: 'Statement rings and cocktail rings' },
+  { customId: 'bracelets',   name: 'Bracelets',   slug: 'bracelets',   image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSglieh0ECe_SclZR4eg7TYNNHW7zK2xsPOXbXQ0vTWAGNSuobvrsLFBU4&s=10', description: 'Elegant bracelets and bangles' },
+  { customId: 'maang-tikka', name: 'Maang Tikka', slug: 'maang-tikka', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSBELfncygGBgpMQS7idxj_y-LFUNttavkRME1XEiQSYDaaq5GlXbULDtQ&s=10', description: 'Traditional maang tikka and hair jewellery' },
+]
