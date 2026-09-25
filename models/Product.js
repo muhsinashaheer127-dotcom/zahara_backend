@@ -27,7 +27,7 @@ const productSchema = new mongoose.Schema(
     offerBadge: { type: String, default: '' },
     availability: {
       type: String,
-      enum: ['available', 'rented', 'maintenance', 'reserved'],
+      enum: ['available', 'limited', 'out_of_stock', 'rented', 'maintenance', 'reserved', 'unavailable'],
       default: 'available',
     },
     availableQuantity: { type: Number, default: 1 },

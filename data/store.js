@@ -42,17 +42,15 @@ export const storeProducts = {
 
   findOne: async (idOrSlug) => {
     requireDB()
-    const target = String(idOrSlug).toLowerCase()
-    let product = await Product.findOne({ slug: target })
-    if (!product) {
-      product = await Product.findOne({
-        $or: [
-          { customId: idOrSlug },
-          { _id: idOrSlug.match(/^[0-9a-fA-F]{24}$/) ? idOrSlug : null },
-        ],
-      })
+    const clean = String(idOrSlug || '').trim()
+    const orConditions = []
+    if (/^[0-9a-fA-F]{24}$/.test(clean)) {
+      orConditions.push({ _id: clean })
     }
-    return product || null
+    orConditions.push({ slug: clean.toLowerCase() })
+    orConditions.push({ customId: clean })
+
+    return await Product.findOne({ $or: orConditions })
   },
 
   create: async (data) => {
@@ -63,29 +61,33 @@ export const storeProducts = {
 
   update: async (id, data) => {
     requireDB()
+    const cleanId = String(id || '').trim()
+    const orConditions = []
+    if (/^[0-9a-fA-F]{24}$/.test(cleanId)) {
+      orConditions.push({ _id: cleanId })
+    }
+    orConditions.push({ customId: cleanId })
+    orConditions.push({ slug: cleanId.toLowerCase() })
+
     const updated = await Product.findOneAndUpdate(
-      {
-        $or: [
-          { customId: id },
-          { slug: id.toLowerCase() },
-          { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
-        ],
-      },
-      data,
-      { new: true, runValidators: true }
+      { $or: orConditions },
+      { $set: data },
+      { returnDocument: 'after', runValidators: true }
     )
     return updated || null
   },
 
   delete: async (id) => {
     requireDB()
-    const deleted = await Product.findOneAndDelete({
-      $or: [
-        { customId: id },
-        { slug: id.toLowerCase() },
-        { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
-      ],
-    })
+    const cleanId = String(id || '').trim()
+    const orConditions = []
+    if (/^[0-9a-fA-F]{24}$/.test(cleanId)) {
+      orConditions.push({ _id: cleanId })
+    }
+    orConditions.push({ customId: cleanId })
+    orConditions.push({ slug: cleanId.toLowerCase() })
+
+    const deleted = await Product.findOneAndDelete({ $or: orConditions })
     return !!deleted
   },
 }
