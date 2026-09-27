@@ -25,7 +25,12 @@ const PORT = process.env.PORT || 5000
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: [
+    'http://localhost:5173', 
+    'http://localhost:3000',
+    'https://zahara-plum.vercel.app',
+    'https://zahara.vercel.app'
+  ],
   credentials: true,
 }))
 app.use(express.json({ limit: '10mb' }))
@@ -72,15 +77,19 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Internal Server Error', error: err.message })
 })
 
-// Start server and connect to MongoDB
+// Start server and connect to database
 const server = app.listen(PORT, () => {
   console.log(`\n\x1b[32m[Zahara] ✓ Server running on http://localhost:${PORT}\x1b[0m`)
   console.log(`\x1b[36m[Zahara]   Frontend: http://localhost:5173\x1b[0m`)
   console.log(`\x1b[36m[Zahara]   Health:   http://localhost:${PORT}/api/health\x1b[0m`)
   console.log(`\x1b[36m[Zahara]   API:      http://localhost:${PORT}/api\x1b[0m\n`)
 
-  // Connect to MongoDB Atlas (non-blocking so server starts immediately)
-  connectDB()
+  // Connect to database (non-blocking so server starts immediately)
+  connectDB().then(() => {
+    console.log('\x1b[32m[Zahara] ✓ Database connection initiated\x1b[0m')
+  }).catch(err => {
+    console.error('\x1b[31m[Zahara] ✗ Database connection failed:\x1b[0m', err.message)
+  })
 })
 
 export default app

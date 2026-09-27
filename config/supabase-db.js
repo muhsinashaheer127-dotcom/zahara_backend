@@ -1,5 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 dotenv.config();
 
 const { Client } = pg;
@@ -8,6 +9,17 @@ let isConnected = false;
 let isConnecting = false;
 let reconnectTimer = null;
 let pool = null;
+let supabase = null;
+
+/**
+ * Create Supabase client
+ */
+function createSupabaseClient() {
+  return createClient(
+    process.env.SUPABASE_URL || 'https://pfafkiztoqkrvsagvacz.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYWZraXp0b3FrcnZzYWd2YWN6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDM2MTQ0MiwiZXhwIjoyMTA1OTM3NDQyfQ.5uEYH1c7dWMyxuiICra3QYtv6dlN4taK1gBnzE4Ae_A'
+  );
+}
 
 /**
  * Create PostgreSQL connection pool
@@ -29,23 +41,18 @@ export const connectDB = async () => {
     return isConnected;
   }
 
-  const connectionString = process.env.SUPABASE_DB_URL;
-
-  if (!connectionString || connectionString.includes('<password>')) {
-    console.warn('\x1b[33m[Supabase] SUPABASE_DB_URL is not configured with real credentials in .env.\x1b[0m');
-    console.warn('\x1b[33m[Supabase] Running in Local In-Memory Fallback Mode.\x1b[0m');
-    return false;
-  }
-
   isConnecting = true;
 
   try {
-    pool = createPool();
+    // Try Supabase client first
+    supabase = createSupabaseClient();
     
-    // Test connection
-    const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
-    client.release();
+    // Test connection using Supabase client
+    const { data, error } = await supabase.from('products').select('count', { count: 'exact', head: true });
+    
+    if (error) {
+      throw new Error(`Supabase client error: ${error.message}`);
+    }
 
     isConnected = true;
     isConnecting = false;
@@ -55,29 +62,61 @@ export const connectDB = async () => {
       reconnectTimer = null;
     }
 
-    console.log(`\x1b[32m[Supabase] ✓ Connected successfully to PostgreSQL database\x1b[0m`);
-    console.log(`\x1b[32m[Supabase] ✓ Server time: ${result.rows[0].now}\x1b[0m`);
-
-    // Seed database if empty (temporarily disabled to fix seeding issues)
-    // autoSeedIfEmpty();
-
-    // Handle pool errors
-    pool.on('error', (err) => {
-      console.error('\x1b[31m[Supabase] Unexpected pool error:', err.message);
-      isConnected = false;
-      scheduleReconnect();
-    });
+    console.log(`\x1b[32m[Supabase] ✓ Connected successfully to Supabase\x1b[0m`);
+    console.log(`\x1b[32m[Supabase] ✓ Using Supabase client for database operations\x1b[0m`);
 
     return true;
   } catch (error) {
-    isConnected = false;
-    isConnecting = false;
-
     console.error(`\x1b[31m[Supabase] Connection FAILED: ${error.message}\x1b[0m`);
-    console.warn('\x1b[33m[Supabase] Database unavailable — all DB-dependent API calls will return 503 errors.\x1b[0m');
+    
+    // Fallback to PostgreSQL connection
+    try {
+      const connectionString = process.env.SUPABASE_DB_URL;
 
-    scheduleReconnect();
-    return false;
+      if (!connectionString || connectionString.includes('<password>')) {
+        console.warn('\x1b[33m[Supabase] SUPABASE_DB_URL is not configured with real credentials in .env.\x1b[0m');
+        console.warn('\x1b[33m[Supabase] Running in Local In-Memory Fallback Mode.\x1b[0m');
+        isConnected = false;
+        isConnecting = false;
+        return false;
+      }
+
+      pool = createPool();
+      
+      // Test connection
+      const client = await pool.connect();
+      const result = await client.query('SELECT NOW()');
+      client.release();
+
+      isConnected = true;
+      isConnecting = false;
+      
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+
+      console.log(`\x1b[32m[Supabase] ✓ Connected successfully to PostgreSQL database\x1b[0m`);
+      console.log(`\x1b[32m[Supabase] ✓ Server time: ${result.rows[0].now}\x1b[0m`);
+
+      // Handle pool errors
+      pool.on('error', (err) => {
+        console.error('\x1b[31m[Supabase] Unexpected pool error:', err.message);
+        isConnected = false;
+        scheduleReconnect();
+      });
+
+      return true;
+    } catch (pgError) {
+      isConnected = false;
+      isConnecting = false;
+
+      console.error(`\x1b[31m[Supabase] PostgreSQL connection also FAILED: ${pgError.message}\x1b[0m`);
+      console.warn('\x1b[33m[Supabase] Database unavailable — all DB-dependent API calls will return 503 errors.\x1b[0m');
+
+      scheduleReconnect();
+      return false;
+    }
   }
 };
 

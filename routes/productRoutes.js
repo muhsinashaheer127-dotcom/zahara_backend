@@ -1,5 +1,7 @@
 import express from 'express'
 import { storeProducts } from '../data/supabase-store.js'
+import { SEED_PRODUCTS } from '../data/products.js'
+import { isDBConnected } from '../config/supabase-db.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -8,16 +10,50 @@ const router = express.Router()
 router.get('/', async (req, res) => {
   try {
     const { category, search, occasion } = req.query
+    
+    // Fallback to local data if database is not connected
+    if (!isDBConnected()) {
+      console.log('[Products] Using local fallback data (database not connected)')
+      let products = [...SEED_PRODUCTS]
+      
+      if (category) {
+        products = products.filter(p => p.category === category)
+      }
+      if (search) {
+        products = products.filter(p => 
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.description.toLowerCase().includes(search.toLowerCase())
+        )
+      }
+      if (occasion) {
+        products = products.filter(p => p.occasion === occasion)
+      }
+      
+      return res.json(products)
+    }
+    
     const products = await storeProducts.find({ category, search, occasion })
     res.json(products)
   } catch (error) {
-    res.status(error.message.includes('not connected') ? 503 : 500).json({
-      success: false,
-      message: error.message.includes('not connected')
-        ? 'Database unavailable. Please ensure the backend is connected to Supabase.'
-        : 'Error retrieving products.',
-      error: error.message,
-    })
+    // Fallback to local data on error
+    console.log('[Products] Error fetching from database, using fallback:', error.message)
+    let products = [...SEED_PRODUCTS]
+    
+    const { category, search, occasion } = req.query
+    if (category) {
+      products = products.filter(p => p.category === category)
+    }
+    if (search) {
+      products = products.filter(p => 
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.description.toLowerCase().includes(search.toLowerCase())
+      )
+    }
+    if (occasion) {
+      products = products.filter(p => p.occasion === occasion)
+    }
+    
+    res.json(products)
   }
 })
 
