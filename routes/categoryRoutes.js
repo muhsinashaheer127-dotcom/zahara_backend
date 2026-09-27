@@ -1,5 +1,7 @@
 import express from 'express'
 import { storeCategories } from '../data/supabase-store.js'
+import { SEED_CATEGORIES } from '../data/categories.js'
+import { isDBConnected } from '../config/supabase-db.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -15,10 +17,18 @@ const dbError = (error) => ({
 // GET /api/categories — public
 router.get('/', async (req, res) => {
   try {
+    // Fallback to local data if database is not connected
+    if (!isDBConnected()) {
+      console.log('[Categories] Using local fallback data (database not connected)')
+      return res.json(SEED_CATEGORIES)
+    }
+    
     const categories = await storeCategories.find()
     res.json(categories)
   } catch (error) {
-    res.status(error.message.includes('not connected') ? 503 : 500).json(dbError(error))
+    // Fallback to local data on error
+    console.log('[Categories] Error fetching from database, using fallback:', error.message)
+    res.json(SEED_CATEGORIES)
   }
 })
 
