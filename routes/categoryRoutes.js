@@ -1,5 +1,5 @@
 import express from 'express'
-import { storeCategories } from '../data/store.js'
+import { storeCategories } from '../data/supabase-store.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -7,7 +7,7 @@ const router = express.Router()
 const dbError = (error) => ({
   success: false,
   message: error.message.includes('not connected')
-    ? 'Database unavailable. Please ensure the backend is connected to MongoDB.'
+    ? 'Database unavailable. Please ensure the backend is connected to Supabase.'
     : error.message,
   error: error.message,
 })

@@ -1,5 +1,5 @@
 import express from 'express'
-import { storeSettings } from '../data/store.js'
+import { storeSettings } from '../data/supabase-store.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()

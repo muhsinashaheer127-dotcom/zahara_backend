@@ -1,5 +1,5 @@
 import express from 'express'
-import { storeReviews } from '../data/store.js'
+import { storeReviews } from '../data/supabase-store.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -9,6 +9,22 @@ router.get('/', authenticateUser, requireAdmin, async (req, res) => {
   try {
     const reviews = await storeReviews.find()
     res.json(reviews)
+  } catch (error) {
+    res.status(error.message.includes('not connected') ? 503 : 500).json({
+      success: false, message: error.message,
+    })
+  }
+})
+
+// GET /api/reviews/:id — admin only
+router.get('/:id', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const review = await storeReviews.findOne(id)
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found.' })
+    }
+    res.json(review)
   } catch (error) {
     res.status(error.message.includes('not connected') ? 503 : 500).json({
       success: false, message: error.message,

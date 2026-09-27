@@ -1,5 +1,5 @@
 import express from 'express'
-import { storeProducts } from '../data/store.js'
+import { storeProducts } from '../data/supabase-store.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
     res.status(error.message.includes('not connected') ? 503 : 500).json({
       success: false,
       message: error.message.includes('not connected')
-        ? 'Database unavailable. Please ensure the backend is connected to MongoDB.'
+        ? 'Database unavailable. Please ensure the backend is connected to Supabase.'
         : 'Error retrieving products.',
       error: error.message,
     })

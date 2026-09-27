@@ -2,7 +2,7 @@ export const SEED_SETTINGS = {
   customId: 'settings_global',
   siteName: 'Zahara Rental Jewellery',
   adminEmail: 'zahararental@gmail.com',
-  contactPhone: '+91 9747133559',
+  contactPhone: '+91 7510484236',
   currency: '₹',
   minRentalDays: 3,
   maxRentalDays: 14,
@@ -17,6 +17,6 @@ export const SEED_SETTINGS = {
   paymentGatewayTestMode: false,
   allowedPaymentMethods: ['UPI', 'Credit Card', 'Debit Card', 'Net Banking', 'Bank Transfer'],
   instagramUrl: 'https://instagram.com/zahararental',
-  whatsappNumber: '+91 9747133559',
+  whatsappNumber: '+91 7510484236',
   address: 'Kerala, India',
 }

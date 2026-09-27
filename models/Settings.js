@@ -5,7 +5,7 @@ const settingsSchema = new mongoose.Schema(
     customId: { type: String, default: 'settings_global', index: true },
     siteName: { type: String, default: 'Zahara Rental Jewellery' },
     adminEmail: { type: String, default: 'zahararental@gmail.com' },
-    contactPhone: { type: String, default: '+91 9747133559' },
+    contactPhone: { type: String, default: '+91 7510484236' },
     currency: { type: String, default: '₹' },
     minRentalDays: { type: Number, default: 3 },
     maxRentalDays: { type: Number, default: 14 },

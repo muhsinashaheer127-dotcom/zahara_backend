@@ -3,7 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { connectDB, getDBStatus } from './config/db.js'
+import { connectDB, getDBStatus } from './config/supabase-db.js'
 
 // Routes
 import productRoutes  from './routes/productRoutes.js'
@@ -41,10 +41,8 @@ app.get('/api/health', (req, res) => {
     ...(
       !db.isConnected
         ? {
-            actionRequired: 'Add your Public IP to MongoDB Atlas > Network Access',
-            publicIP: db.publicIP,
-            atlasUrl: 'https://cloud.mongodb.com/',
-            diagnoseCommand: 'node server/diagnose.js',
+            actionRequired: 'Check your Supabase credentials in .env file',
+            supabaseUrl: 'https://supabase.com/dashboard',
           }
         : {}
     ),

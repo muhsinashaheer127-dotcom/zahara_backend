@@ -1,8 +1,8 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { User } from '../models/User.js'
-import { isDBConnected } from '../config/db.js'
+import { storeUsers } from '../data/supabase-store.js'
+import { isDBConnected } from '../config/supabase-db.js'
 import { authenticateUser, requireAdmin } from '../middleware/auth.js'
 
 const router = express.Router()
@@ -12,10 +12,16 @@ const generateToken = (user) => {
   const secret = process.env.JWT_SECRET
   if (!secret) throw new Error('JWT_SECRET is not configured in .env')
   return jwt.sign(
-    { id: user._id.toString(), customId: user.customId, email: user.email, role: user.role, name: user.name },
+    { id: user.id, customId: user.customId, email: user.email, role: user.role, name: user.name },
     secret,
     { expiresIn: '7d' }
   )
+}
+
+/** Format user response to exclude password */
+const formatUserResponse = (user) => {
+  const { password, ...userWithoutPassword } = user
+  return userWithoutPassword
 }
 
 // ─── POST /api/auth/register ────────────────────────────────────────────────
@@ -39,14 +45,14 @@ router.post('/register', async (req, res) => {
 
     const cleanEmail = email.toLowerCase().trim()
 
-    const existing = await User.findOne({ email: cleanEmail })
+    const existing = await storeUsers.findOneWithEmail(cleanEmail)
     if (existing) {
       return res.status(409).json({ success: false, message: 'An account with this email address already exists.' })
     }
 
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    const user = new User({
+    const userData = {
       customId: `usr_${Date.now()}`,
       name: name.trim(),
       email: cleanEmail,
@@ -55,15 +61,15 @@ router.post('/register', async (req, res) => {
       address: address || '',
       role: 'user',
       memberSince: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-    })
+    }
 
-    const saved = await user.save()
+    const saved = await storeUsers.create(userData)
     const token = generateToken(saved)
 
     res.status(201).json({
       success: true,
       token,
-      user: saved.toJSON(),
+      user: formatUserResponse(saved),
     })
   } catch (error) {
     console.error('[Auth] Register error:', error.message)
@@ -85,7 +91,7 @@ router.post('/login', async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim()
-    const user = await User.findOne({ email: cleanEmail }).select('+password')
+    const user = await storeUsers.findOneWithEmail(cleanEmail)
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'No account found with this email address.' })
@@ -105,7 +111,7 @@ router.post('/login', async (req, res) => {
     res.json({
       success: true,
       token,
-      user: user.toJSON(),
+      user: formatUserResponse(user),
     })
   } catch (error) {
     console.error('[Auth] Login error:', error.message)
@@ -119,8 +125,9 @@ router.get('/', authenticateUser, requireAdmin, async (req, res) => {
     return res.status(503).json({ success: false, message: 'Database is not connected.' })
   }
   try {
-    const users = await User.find().sort({ createdAt: -1 })
-    res.json(users)
+    const users = await storeUsers.find()
+    const usersWithoutPasswords = users.map(formatUserResponse)
+    res.json(usersWithoutPasswords)
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error retrieving users.', error: error.message })
   }
@@ -139,15 +146,13 @@ router.get('/:id', authenticateUser, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied.' })
     }
 
-    const user = await User.findOne({
-      $or: [{ customId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }],
-    })
+    const user = await storeUsers.findOne(id)
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' })
     }
 
-    res.json(user.toJSON())
+    res.json(formatUserResponse(user))
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error retrieving user.', error: error.message })
   }
@@ -181,17 +186,13 @@ router.put('/:id', authenticateUser, async (req, res) => {
       }
     }
 
-    const updated = await User.findOneAndUpdate(
-      { $or: [{ customId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }] },
-      updateData,
-      { new: true, runValidators: true }
-    )
+    const updated = await storeUsers.update(id, updateData)
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'User not found.' })
     }
 
-    res.json({ success: true, user: updated.toJSON() })
+    res.json({ success: true, user: formatUserResponse(updated) })
   } catch (error) {
     res.status(400).json({ success: false, message: 'Failed to update profile.', error: error.message })
   }
@@ -206,17 +207,13 @@ router.put('/:id/status', authenticateUser, requireAdmin, async (req, res) => {
     const { id } = req.params
     const { status } = req.body
 
-    const updated = await User.findOneAndUpdate(
-      { $or: [{ customId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }] },
-      { accountStatus: status },
-      { new: true }
-    )
+    const updated = await storeUsers.updateStatus(id, status)
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'User not found.' })
     }
 
-    res.json(updated.toJSON())
+    res.json(formatUserResponse(updated))
   } catch (error) {
     res.status(400).json({ success: false, message: 'Failed to update user status.', error: error.message })
   }
@@ -230,11 +227,9 @@ router.delete('/:id', authenticateUser, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params
 
-    const deleted = await User.findOneAndDelete({
-      $or: [{ customId: id }, { _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }],
-    })
+    const success = await storeUsers.delete(id)
 
-    if (!deleted) {
+    if (!success) {
       return res.status(404).json({ success: false, message: 'User not found.' })
     }
 
